@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+   <meta charset="utf-8" />
+   <meta name="viewport" content="width=device-width,initial-scale=1" />
+   <title>Visualizador 3D de Moléculas Químicas</title>
+   <link rel="preconnect" href="https://fonts.googleapis.com">
+   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+   <style>
+       :root {
+           --bg-color: #020617;
+           --panel-bg: rgba(30, 41, 59, 0.9);
+           --border-color: #334155;
+           --text-primary: #e2e8f0;
+           --text-secondary: #94a3b8;
+           --accent-color: #818cf8;
+           --accent-hover: #a78bfa;
+           --success-color: #34d399;
+           --warning-color: #f59e0b;
+           --danger-color: #ef4444;
+           --info-color: #3498db;
+       }
+
+       * {
+           margin: 0;
+           padding: 0;
+           box-sizing: border-box;
+       }
+
+       html, body {
+           height: 100%;
+           font-family: 'Inter', system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+           background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #020617 100%);
+           background-attachment: fixed;
+           color: var(--text-primary);
+           overflow-x: hidden;
+       }
+
+       .stars-bg {
+           position: fixed;
+           top: 0;
+           left: 0;
+           width: 100%;
+           height: 100%;
+           pointer-events: none;
+           z-index: -1;
+       }
+
+       .container {
+           max-width: 1400px;
+           margin: 0 auto;
+           padding: 20px;
+       }
+
+       .header {
+           text-align: center;
+           margin-bottom: 60px;
+           padding: 40px 0;
+       }
+
+       .header h1 {
+           font-size: 3.5rem;
+           font-weight: 700;
+           background: linear-gradient(135deg, #818cf8, #34d399, #f59e0b);
+           -webkit-background-clip: text;
+           -webkit-text-fill-color: transparent;
+           background-clip: text;
+           margin-bottom: 20px;
+           text-shadow: 0 0 30px rgba(129, 140, 248, 0.3);
+       }
+
+       .header p {
+           font-size: 1.2rem;
+           color: var(--text-secondary);
+           max-width: 600px;
+           margin: 0 auto;
+           line-height: 1.6;
+       }
+
+       .molecules-grid {
+           display: grid;
+           grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+           gap: 30px;
+           margin-bottom: 60px;
+       }
+
+       .molecule-card {
+           background: var(--panel-bg);
+           border: 1px solid var(--border-color);
+           border-radius: 20px;
+           padding: 30px;
+           backdrop-filter: blur(12px);
+           -webkit-backdrop-filter: blur(12px);
+           transition: all 0.3s ease;
+           position: relative;
+           overflow: hidden;
+       }
+
+       .molecule-card::before {
+           content: '';
+           position: absolute;
+           top: 0;
+           left: 0;
+           right: 0;
+           height: 4px;
+           background: linear-gradient(90deg, #818cf8, #34d399, #f59e0b, #ef4444, #ec4899);
+           background-size: 200% 100%;
+           animation: gradient-shift 3s linear infinite;
+       }
+
+       @keyframes gradient-shift {
+           0% { background-position: 200% 0; }
+           100% { background-position: -200% 0; }
+       }
+
+       .molecule-card:hover {
+           transform: translateY(-10px);
+           box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+           border-color: var(--accent-color);
+       }
+
+       .molecule-header {
+           display: flex;
+           align-items: center;
+           justify-content: space-between;
+           margin-bottom: 20px;
+       }
+
+       .molecule-name {
+           font-size: 1.5rem;
+           font-weight: 600;
+           color: var(--text-primary);
+       }
+
+       .molecule-formula {
+           background: var(--accent-color);
+           color: white;
+           padding: 8px 16px;
+           border-radius: 20px;
+           font-family: 'Courier New', monospace;
+           font-size: 1.1rem;
+           font-weight: 600;
+       }
+
+       .molecule-category {
+           display: inline-flex;
+           align-items: center;
+           gap: 8px;
+           background: rgba(52, 152, 219, 0.1);
+           color: var(--info-color);
+           padding: 6px 12px;
+           border-radius: 15px;
+           font-size: 0.85rem;
+           margin-bottom: 15px;
+       }
+
+       .molecule-description {
+           color: var(--text-secondary);
+           line-height: 1.6;
+           margin-bottom: 20px;
+           font-size: 0.95rem;
+       }
+
+       .molecule-props {
+           display: grid;
+           grid-template-columns: 1fr 1fr;
+           gap: 10px;
+           margin-bottom: 25px;
+       }
+
+       .prop-item {
+           display: flex;
+           justify-content: space-between;
+           padding: 8px 0;
+           border-bottom: 1px solid rgba(51, 65, 85, 0.3);
+           font-size: 0.9rem;
+       }
+
+       .prop-label {
+           color: var(--text-secondary);
+       }
+
+       .prop-value {
+           color: var(--text-primary);
+           font-weight: 500;
+       }
+
+       .molecule-actions {
+           margin-top: 25px;
+       }
+
+       .btn {
+           width: 100%;
+           padding: 15px 20px;
+           border: none;
+           border-radius: 10px;
+           font-size: 1rem;
+           font-weight: 600;
+           cursor: pointer;
+           transition: all 0.3s ease;
+           text-decoration: none;
+           display: inline-flex;
+           align-items: center;
+           justify-content: center;
+           gap: 8px;
+       }
+
+       .btn-primary {
+           background: var(--accent-color);
+           color: white;
+       }
+
+       .btn-primary:hover {
+           background: var(--accent-hover);
+           transform: translateY(-2px);
+           box-shadow: 0 8px 20px rgba(129, 140, 248, 0.3);
+       }
+
+       .btn-secondary {
+           background: rgba(52, 152, 219, 0.1);
+           color: var(--info-color);
+           border: 1px solid var(--info-color);
+       }
+
+       .btn-secondary:hover {
+           background: var(--info-color);
+           color: white;
+           transform: translateY(-2px);
+       }
+
+       .features-grid {
+           display: grid;
+           grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+           gap: 25px;
+           margin-bottom: 50px;
+       }
+
+       .feature-card {
+           background: rgba(255, 255, 255, 0.05);
+           border: 1px solid rgba(255, 255, 255, 0.1);
+           border-radius: 15px;
+           padding: 25px;
+           text-align: center;
+           transition: all 0.3s ease;
+       }
+
+       .feature-card:hover {
+           background: rgba(255, 255, 255, 0.1);
+           transform: translateY(-5px);
+       }
+
+       .feature-icon {
+           font-size: 2.5rem;
+           margin-bottom: 15px;
+           color: var(--accent-color);
+       }
+
+       .feature-title {
+           font-size: 1.2rem;
+           font-weight: 600;
+           margin-bottom: 10px;
+       }
+
+       .feature-desc {
+           color: var(--text-secondary);
+           line-height: 1.5;
+       }
+
+       .footer {
+           text-align: center;
+           padding: 40px 0;
+           border-top: 1px solid var(--border-color);
+           margin-top: 60px;
+       }
+
+       .footer p {
+           color: var(--text-secondary);
+           font-size: 0.9rem;
+       }
+
+       @media (max-width: 768px) {
+           .container {
+               padding: 15px;
+           }
+
+           .header h1 {
+               font-size: 2.5rem;
+           }
+
+           .molecules-grid {
+               grid-template-columns: 1fr;
+               gap: 20px;
+           }
+
+           .molecule-card {
+               padding: 20px;
+           }
+
+           .molecule-props {
+               grid-template-columns: 1fr;
+           }
+
+           .molecule-actions {
+               /* No necesita flex-direction column ya que ahora solo hay un botón */
+           }
+
+           .features-grid {
+               grid-template-columns: 1fr;
+           }
+       }
+
+       .loading {
+           opacity: 0;
+           animation: fadeIn 0.8s ease forwards;
+       }
+
+       @keyframes fadeIn {
+           to {
+               opacity: 1;
+           }
+       }
+
+       .molecule-icon {
+           font-size: 1.2rem;
+           margin-right: 5px;
+       }
+   </style>
+</head>
+<body>
+   <div class="stars-bg" id="stars"></div>
+
+   <div class="container">
+       <header class="header loading">
+           <h1><i class="fas fa-atom"></i> Visualizador 3D de Moléculas</h1>
+           <p>Explora la estructura tridimensional de las moléculas químicas más importantes con visualizaciones interactivas avanzadas</p>
+       </header>
+
+       <section class="molecules-grid loading">
+           <!-- Etanol -->
+           <div class="molecule-card">
+               <div class="molecule-header">
+                   <h2 class="molecule-name">Etanol</h2>
+                   <span class="molecule-formula">C₂H₆O</span>
+               </div>
+               <div class="molecule-category">
+                   <i class="fas fa-wine-bottle"></i>
+                   Alcohol
+               </div>
+               <p class="molecule-description">
+                   El etanol, o alcohol etílico, es un compuesto orgánico fundamental en numerosas industrias. Es un líquido volátil e inflamable con múltiples aplicaciones.
+               </p>
+               <div class="molecule-props">
+                   <div class="prop-item">
+                       <span class="prop-label">Masa Molar</span>
+                       <span class="prop-value">46.07 g/mol</span>
+                   </div>
+                   <div class="prop-item">
+                       <span class="prop-label">Densidad</span>
+                       <span class="prop-value">0.789 g/cm³</span>
+                   </div>
+                   <div class="prop-item">
+                       <span class="prop-label">P. Ebullición</span>
+                       <span class="prop-value">78.37 °C</span>
+                   </div>
+                   <div class="prop-item">
+                       <span class="prop-label">Estado</span>
+                       <span class="prop-value">Líquido</span>
+                   </div>
+               </div>
+               <div class="molecule-actions">
+                   <a href="molecules/ethanol.html" class="btn btn-primary">
+                       <i class="fas fa-vr-cardboard"></i>
+                       Ver 3D
+                   </a>
+               </div>
+           </div>
+
+           <!-- Amoníaco -->
+           <div class="molecule-card">
+               <div class="molecule-header">
+                   <h2 class="molecule-name">Amoníaco</h2>
+                   <span class="molecule-formula">NH₃</span>
+               </div>
+               <div class="molecule-category">
+                   <i class="fas fa-cloud"></i>
+                   Gas Industrial
+               </div>
+               <p class="molecule-description">
+                   El amoníaco es un compuesto de nitrógeno e hidrógeno, gas incoloro con olor penetrante. Es fundamental en la producción de fertilizantes y productos de limpieza.
+               </p>
+               <div class="molecule-props">
+                   <div class="prop-item">
+                       <span class="prop-label">Masa Molar</span>
+                       <span class="prop-value">17.03 g/mol</span>
+                   </div>
+                   <div class="prop-item">
+                       <span class="prop-label">Densidad</span>
+                       <span class="prop-value">0.73 kg/m³</span>
+                   </div>
+                   <div class="prop-item">
+                       <span class="prop-label">P. Ebullición</span>
+                       <span class="prop-value">-33.34 °C</span>
+                   </div>
+                   <div class="prop-item">
+                       <span class="prop-label">Estado</span>
+                       <span class="prop-value">Gas</span>
+                   </div>
+               </div>
+               <div class="molecule-actions">
+                   <a href="molecules/ammonia.html" class="btn btn-primary">
+                       <i class="fas fa-vr-cardboard"></i>
+                       Ver 3D
+                   </a>
+               </div>
+           </div>
+
+           <!-- Etileno -->
+           <div class="molecule-card">
+               <div class="molecule-header">
+                   <h2 class="molecule-name">Etileno</h2>
+                   <span class="molecule-formula">C₂H₄</span>
+               </div>
+               <div class="molecule-category">
+                   <i class="fas fa-fire"></i>
+                   Alqueno
+               </div>
+               <p class="molecule-description">
+                   El etileno es un hidrocarburo insaturado, el alqueno más simple. Es un gas inflamable y el compuesto orgánico más producido en el mundo.
+               </p>
+               <div class="molecule-props">
+                   <div class="prop-item">
+                       <span class="prop-label">Masa Molar</span>
+                       <span class="prop-value">28.05 g/mol</span>
+                   </div>
+                   <div class="prop-item">
+                       <span class="prop-label">Densidad</span>
+                       <span class="prop-value">1.178 kg/m³</span>
+                   </div>
+                   <div class="prop-item">
+                       <span class="prop-label">P. Ebullición</span>
+                       <span class="prop-value">-103.7 °C</span>
+                   </div>
+                   <div class="prop-item">
+                       <span class="prop-label">Estado</span>
+                       <span class="prop-value">Gas</span>
+                   </div>
+               </div>
+               <div class="molecule-actions">
+                   <a href="molecules/ethylene.html" class="btn btn-primary">
+                       <i class="fas fa-vr-cardboard"></i>
+                       Ver 3D
+                   </a>
+               </div>
+           </div>
+
+           <!-- Ácido Sulfúrico -->
+           <div class="molecule-card">
+               <div class="molecule-header">
+                   <h2 class="molecule-name">Ácido Sulfúrico</h2>
+                   <span class="molecule-formula">H₂SO₄</span>
+               </div>
+               <div class="molecule-category">
+                   <i class="fas fa-exclamation-triangle"></i>
+                   Ácido Fuerte
+               </div>
+               <p class="molecule-description">
+                   Es un compuesto químico extremadamente corrosivo y uno de los productos químicos más importantes de la industria. Conocido como el "rey de los químicos".
+               </p>
+               <div class="molecule-props">
+                   <div class="prop-item">
+                       <span class="prop-label">Masa Molar</span>
+                       <span class="prop-value">98.079 g/mol</span>
+                   </div>
+                   <div class="prop-item">
+                       <span class="prop-label">Densidad</span>
+                       <span class="prop-value">1.83 g/cm³</span>
+                   </div>
+                   <div class="prop-item">
+                       <span class="prop-label">P. Ebullición</span>
+                       <span class="prop-value">337 °C</span>
+                   </div>
+                   <div class="prop-item">
+                       <span class="prop-label">Estado</span>
+                       <span class="prop-value">Líquido</span>
+                   </div>
+               </div>
+               <div class="molecule-actions">
+                   <a href="molecules/sulfuric-acid.html" class="btn btn-primary">
+                       <i class="fas fa-vr-cardboard"></i>
+                       Ver 3D
+                   </a>
+               </div>
+           </div>
+
+           <!-- Acetona -->
+           <div class="molecule-card">
+               <div class="molecule-header">
+                   <h2 class="molecule-name">Acetona</h2>
+                   <span class="molecule-formula">C₃H₆O</span>
+               </div>
+               <div class="molecule-category">
+                   <i class="fas fa-paint-brush"></i>
+                   Cetona
+               </div>
+               <p class="molecule-description">
+                   La acetona es la cetona más simple, un líquido incoloro e inflamable. Es uno de los disolventes industriales más importantes y de uso común.
+               </p>
+               <div class="molecule-props">
+                   <div class="prop-item">
+                       <span class="prop-label">Masa Molar</span>
+                       <span class="prop-value">58.08 g/mol</span>
+                   </div>
+                   <div class="prop-item">
+                       <span class="prop-label">Densidad</span>
+                       <span class="prop-value">0.784 g/cm³</span>
+                   </div>
+                   <div class="prop-item">
+                       <span class="prop-label">P. Ebullición</span>
+                       <span class="prop-value">56 °C</span>
+                   </div>
+                   <div class="prop-item">
+                       <span class="prop-label">Estado</span>
+                       <span class="prop-value">Líquido</span>
+                   </div>
+               </div>
+               <div class="molecule-actions">
+                   <a href="molecules/acetone.html" class="btn btn-primary">
+                       <i class="fas fa-vr-cardboard"></i>
+                       Ver 3D
+                   </a>
+               </div>
+           </div>
+       </section>
+
+       <section class="features-grid loading">
+           <div class="feature-card">
+               <div class="feature-icon">
+                   <i class="fas fa-cube"></i>
+               </div>
+               <h3 class="feature-title">Visualización 3D</h3>
+               <p class="feature-desc">Modelos moleculares tridimensionales interactivos con representación realista de átomos y enlaces</p>
+           </div>
+
+           <div class="feature-card">
+               <div class="feature-icon">
+                   <i class="fas fa-mouse-pointer"></i>
+               </div>
+               <h3 class="feature-title">Controles Intuitivos</h3>
+               <p class="feature-desc">Interfaz fácil de usar con controles de rotación, zoom y diferentes modos de visualización</p>
+           </div>
+
+           <div class="feature-card">
+               <div class="feature-icon">
+                   <i class="fas fa-flask"></i>
+               </div>
+               <h3 class="feature-title">Información Detallada</h3>
+               <p class="feature-desc">Propiedades físicas, químicas y aplicaciones industriales de cada molécula</p>
+           </div>
+
+           <div class="feature-card">
+               <div class="feature-icon">
+                   <i class="fas fa-exclamation-triangle"></i>
+               </div>
+               <h3 class="feature-title">Datos de Seguridad</h3>
+               <p class="feature-desc">Información completa sobre riesgos y medidas de seguridad con pictogramas normalizados</p>
+           </div>
+       </section>
+
+       <footer class="footer loading">
+           <p>&copy; 2024 Visualizador 3D de Moléculas Químicas. Desarrollado con Three.js y tecnologías web modernas.</p>
+       </footer>
+   </div>
+
+   <script>
+       // Crear estrellas de fondo animadas
+       function createStars() {
+           const starsContainer = document.getElementById('stars');
+           const starCount = 200;
+
+           for (let i = 0; i < starCount; i++) {
+               const star = document.createElement('div');
+               star.style.position = 'absolute';
+               star.style.width = Math.random() * 3 + 'px';
+               star.style.height = star.style.width;
+               star.style.background = '#fff';
+               star.style.borderRadius = '50%';
+               star.style.opacity = Math.random();
+               star.style.left = Math.random() * 100 + '%';
+               star.style.top = Math.random() * 100 + '%';
+               star.style.animation = `twinkle ${Math.random() * 3 + 2}s infinite`;
+
+               starsContainer.appendChild(star);
+           }
+       }
+
+       // Animación de las estrellas
+       const style = document.createElement('style');
+       style.textContent = `
+           @keyframes twinkle {
+               0%, 100% { opacity: 0; }
+               50% { opacity: 1; }
+           }
+       `;
+       document.head.appendChild(style);
+
+       // Inicializar estrellas
+       createStars();
+
+       // Animación de carga secuencial
+       document.addEventListener('DOMContentLoaded', function() {
+           const loadingElements = document.querySelectorAll('.loading');
+           loadingElements.forEach((el, index) => {
+               setTimeout(() => {
+                   el.style.animationDelay = '0s';
+               }, index * 200);
+           });
+       });
+   </script>
+</body>
+</html>

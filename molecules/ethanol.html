@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Modelo 3D de Etanol (C₂H₆O) | Visualizador Avanzado</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <style>
+        :root {
+            --bg-color: #020617;
+            --panel-bg: rgba(30, 41, 59, 0.8);
+            --border-color: #334155;
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --accent-color: #818cf8;
+            --accent-hover: #a78bfa;
+            --sidebar-width: 340px;
+            --sidebar-transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        html, body {
+            height: 100%;
+            margin: 0;
+            font-family: 'Inter', system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+            background-image: radial-gradient(ellipse at bottom, #1e293b 0%, #020617 60%);
+            color: var(--text-primary);
+            overflow: hidden;
+        }
+
+        #loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--bg-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            transition: opacity 0.5s ease;
+            font-size: 2.5rem;
+            color: var(--accent-color);
+        }
+
+        #viewer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        
+        #viewer-title {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            z-index: 5;
+            background-color: var(--panel-bg);
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            font-size: 0.875rem;
+            pointer-events: none;
+            opacity: 0;
+            transform: translateY(20px);
+            animation: fadeIn 0.5s ease 0.5s forwards;
+        }
+        @keyframes fadeIn { to { opacity: 1; transform: translateY(0); } }
+
+        #viewer-title h1 { font-size: 1.25rem; margin:0 0 4px 0; color: var(--text-primary); }
+        #viewer-title p { margin: 0; font-family: monospace; color: var(--text-secondary); }
+
+        #sidebar {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: var(--sidebar-width);
+            height: 100%;
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-left: 1px solid var(--border-color);
+            box-shadow: -8px 0 32px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            z-index: 10;
+            transition: var(--sidebar-transition);
+            transform: translateX(0);
+        }
+        
+        #sidebar.closed {
+            transform: translateX(var(--sidebar-width));
+        }
+
+        #sidebar-toggle {
+            position: fixed;
+            top: 50%;
+            right: var(--sidebar-width);
+            transform: translateY(-50%);
+            width: 30px;
+            height: 60px;
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-right: none;
+            border-radius: 8px 0 0 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            z-index: 11;
+            transition: right 0.4s cubic-bezier(0.25, 1, 0.5, 1), background-color 0.3s ease;
+        }
+        #sidebar.closed + #sidebar-toggle {
+            right: 0;
+        }
+        #sidebar-toggle i {
+            transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+            transform: rotate(0deg);
+        }
+        #sidebar.closed + #sidebar-toggle i {
+            transform: rotate(180deg);
+        }
+        #sidebar-toggle:hover {
+            background-color: #334155;
+            color: var(--text-primary);
+        }
+
+        .tabs { display: flex; border-bottom: 1px solid var(--border-color); flex-shrink: 0; }
+        .tab-button { flex: 1; padding: 16px; background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 0.875rem; font-weight: 600; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 8px; border-bottom: 2px solid transparent; }
+        .tab-button:hover { color: var(--text-primary); background-color: rgba(255, 255, 255, 0.05); }
+        .tab-button.active { color: var(--accent-color); border-bottom-color: var(--accent-color); }
+        .tab-button .icon { font-size: 1rem; }
+        
+        .tab-content { display: none; padding: 24px; flex-grow: 1; overflow-y: auto; }
+        .tab-content.active { display: flex; flex-direction: column; gap: 24px; }
+        .tab-content::-webkit-scrollbar { width: 6px; }
+        .tab-content::-webkit-scrollbar-track { background: transparent; }
+        .tab-content::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+        .tab-content::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+        .info-group h3, .control-group h3 { margin: 0 0 16px 0; font-size: 1rem; font-weight: 600; color: var(--text-primary); border-bottom: 1px solid var(--border-color); padding-bottom: 12px; display: flex; align-items: center; gap: 10px;}
+        .info-group h3 .icon, .control-group h3 .icon { color: var(--accent-color); font-size: 0.9rem; width: 1.2em; text-align: center;}
+        
+        .control-item { display: flex; justify-content: space-between; align-items: center; font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 16px; }
+
+        button.reset-btn { width: 100%; background-color: var(--accent-color); border: 0; padding: 10px 16px; border-radius: 8px; color: white; cursor: pointer; font-size: 0.875rem; font-weight: 600; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        button.reset-btn:hover { background-color: var(--accent-hover); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(129, 140, 248, 0.2); }
+
+        .toggle-switch { position: relative; display: inline-block; width: 40px; height: 22px; }
+        .toggle-switch input { display: none; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #475569; transition: .4s; border-radius: 22px; }
+        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--accent-color); }
+        input:checked + .slider:before { transform: translateX(18px); }
+
+        input[type=range] { -webkit-appearance: none; width: 120px; background: transparent; }
+        input[type=range]::-webkit-slider-runnable-track { height: 4px; cursor: pointer; background: #475569; border-radius: 2px; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: var(--accent-color); cursor: pointer; margin-top: -6px; transition: transform 0.2s ease; }
+        input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+        .atom-label { position: fixed; top:0; left:0; padding: 4px 8px; border-radius: 6px; background: var(--panel-bg); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); color: white; font-size: 12px; pointer-events: none; border: 1px solid var(--border-color); box-shadow: 0 2px 6px rgba(0,0,0,0.3); transition: opacity 0.2s; will-change: transform; }
+        
+        #infoBox {
+            position: fixed;
+            padding: 10px 16px;
+            background: var(--panel-bg);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            color: white;
+            border-radius: 8px;
+            font-size: 13px;
+            z-index: 9999;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            border: 1px solid var(--border-color);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+            visibility: hidden;
+        }
+        #infoBox.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        #home-button {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            font-size: 1.2rem;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        #home-button:hover {
+            background-color: var(--accent-color);
+            color: white;
+            transform: scale(1.1);
+            box-shadow: 0 6px 20px rgba(129, 140, 248, 0.3);
+        }
+
+        #chat-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            font-size: 1.2rem;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        #chat-toggle:hover {
+            background-color: #34d399;
+            color: white;
+            transform: scale(1.1);
+            box-shadow: 0 6px 20px rgba(52, 211, 153, 0.3);
+        }
+
+        #chat-container {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            width: 350px;
+            height: 500px;
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 15px;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            display: none;
+            flex-direction: column;
+            z-index: 200;
+            overflow: hidden;
+        }
+
+        #chat-container.show {
+            display: flex;
+        }
+
+        #chat-header {
+            background: linear-gradient(135deg, #34d399, #10b981);
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        #chat-header h3 {
+            margin: 0;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        #chat-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 50%;
+            transition: background-color 0.3s ease;
+        }
+
+        #chat-close:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+
+        #chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        #chat-messages::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        #chat-messages::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        #chat-messages::-webkit-scrollbar-thumb {
+            background: #34d399;
+            border-radius: 2px;
+        }
+
+        .message {
+            padding: 12px 16px;
+            border-radius: 12px;
+            max-width: 80%;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .message.user {
+            background: var(--accent-color);
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.ai {
+            background: rgba(52, 211, 153, 0.1);
+            color: var(--text-primary);
+            border: 1px solid rgba(52, 211, 153, 0.3);
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+        }
+
+        .message.ai-header {
+            background: rgba(52, 211, 153, 0.2);
+            color: #34d399;
+            font-size: 0.8rem;
+            font-weight: 600;
+            padding: 8px 12px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+
+        #chat-input-area {
+            padding: 20px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        #chat-input {
+            flex: 1;
+            padding: 10px 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            outline: none;
+        }
+
+        #chat-input:focus {
+            border-color: #34d399;
+            box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.2);
+        }
+
+        #chat-input::placeholder {
+            color: var(--text-secondary);
+        }
+
+        #chat-send {
+            background: #34d399;
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        #chat-send:hover {
+            background: #10b981;
+            transform: scale(1.05);
+        }
+
+        #chat-send:disabled {
+            background: var(--text-secondary);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        @media (max-width: 768px) {
+            #chat-container {
+                width: calc(100vw - 40px);
+                height: 400px;
+                top: 80px;
+                right: 20px;
+                left: 20px;
+            }
+        }
+
+        .info-group p { font-size: 0.875rem; color: var(--text-secondary); line-height: 1.6; margin: 0; }
+        .info-group ul { list-style: none; padding: 0; margin: 12px 0 0 0; font-size: 0.875rem; }
+        .info-group ul li { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #33415555; }
+        .info-group ul li:last-child { border-bottom: none; }
+        .info-group ul li span:first-child { color: var(--text-primary); font-weight: 500; }
+        .info-group ul li span:last-child { color: var(--text-secondary); text-align: right; padding-left: 12px; }
+        
+        .structure-2d {
+            background-color: rgba(255,255,255,0.08);
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .structure-2d svg {
+            max-width: 100%;
+            height: auto;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+        }
+        
+        .safety-pictograms { display: flex; gap: 16px; justify-content: center; margin-top: 16px; }
+        .pictogram { text-align: center; }
+        .pictogram svg { width: 50px; height: 50px; }
+        .pictogram figcaption { font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px;}
+
+        @media (max-width: 768px) {
+            :root {
+                --sidebar-width: 280px;
+            }
+            #sidebar {
+                transform: translateX(var(--sidebar-width));
+            }
+            #sidebar.closed {
+                transform: translateX(0);
+            }
+             #sidebar-toggle {
+                right: 0;
+             }
+             #sidebar.closed + #sidebar-toggle {
+                right: var(--sidebar-width);
+             }
+            #viewer-title {
+                font-size: 0.75rem; bottom: 15px; left: 15px; padding: 6px 12px;
+            }
+            #viewer-title h1 { font-size: 1rem; }
+        }
+    </style>
+    <script type="importmap">
+        { "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.152.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.152.0/examples/jsm/"
+        } }
+    </script>
+</head>
+<body>
+    <div id="loader"><i class="fa-solid fa-spinner fa-spin"></i></div>
+
+    <div id="viewer"></div>
+    <div id="viewer-title">
+        <h1>ETANOL</h1>
+        <p>C₂H₆O</p>
+    </div>
+
+    <button id="home-button" title="Volver al inicio">
+        <i class="fa-solid fa-arrow-left"></i>
+    </button>
+
+    <button id="chat-toggle" title="Chat con IA">
+        <i class="fa-solid fa-robot"></i>
+    </button>
+
+    <div id="chat-container">
+        <div id="chat-header">
+            <h3><i class="fa-solid fa-robot"></i> Asistente Químico</h3>
+            <button id="chat-close"><i class="fa-solid fa-times"></i></button>
+        </div>
+        <div id="chat-messages"></div>
+        <div id="chat-input-area">
+            <input type="text" id="chat-input" placeholder="Pregunta sobre el etanol...">
+            <button id="chat-send">
+                <i class="fa-solid fa-paper-plane"></i>
+            </button>
+        </div>
+    </div>
+
+    <aside id="sidebar" class="closed">
+        <nav class="tabs">
+            <button class="tab-button active" data-tab="info-tab">
+                <i class="icon fa-solid fa-circle-info"></i>
+                <span>Información</span>
+            </button>
+            <button class="tab-button" data-tab="controls-tab">
+                <i class="icon fa-solid fa-sliders"></i>
+                <span>Controles</span>
+            </button>
+        </nav>
+        <div id="info-tab" class="tab-content active">
+             <div class="info-group">
+                <h3><i class="icon fa-solid fa-link"></i><span>Etanol (C₂H₆O)</span></h3>
+                <p>El etanol, o alcohol etílico, es un compuesto orgánico y un alcohol simple. Es un líquido volátil, inflamable e incoloro con un olor característico, fundamental en numerosas industrias.</p>
+            </div>
+            <div class="info-group structure-2d">
+                 <svg viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg">
+                    <!-- Enlaces -->
+                    <line x1="45" y1="60" x2="95" y2="60" stroke="#64748B" stroke-width="3" stroke-linecap="round"/>
+                    <line x1="95" y1="60" x2="130" y2="35" stroke="#64748B" stroke-width="3" stroke-linecap="round"/>
+
+                    <!-- Átomos de Carbono (gris) -->
+                    <circle cx="45" cy="60" r="8" fill="#475569" stroke="#1e293b" stroke-width="2"/>
+                    <circle cx="95" cy="60" r="8" fill="#475569" stroke="#1e293b" stroke-width="2"/>
+
+                    <!-- Átomo de Oxígeno (rojo) -->
+                    <circle cx="130" cy="35" r="8" fill="#ef4444" stroke="#dc2626" stroke-width="2"/>
+
+                    <!-- Textos -->
+                    <text x="25" y="65" font-size="14" font-family="Inter, sans-serif" fill="#e2e8f0" font-weight="500">H₃C</text>
+                    <text x="90" y="85" font-size="14" font-family="Inter, sans-serif" fill="#e2e8f0" font-weight="500">CH₂</text>
+                    <text x="140" y="35" font-size="14" font-family="Inter, sans-serif" fill="#e2e8f0" font-weight="500">OH</text>
+                </svg>
+            </div>
+            <div class="info-group">
+                <h3><i class="icon fa-solid fa-chart-line"></i><span>Propiedades</span></h3>
+                <ul>
+                    <li><span>Masa Molar</span><span>46.07 g/mol</span></li>
+                    <li><span>Densidad</span><span>0.789 g/cm³</span></li>
+                    <li><span>P. de Ebullición</span><span>78.37 °C</span></li>
+                    <li><span>P. de Fusión</span><span>-114 °C</span></li>
+                    <li><span>Solubilidad en agua</span><span>Miscible</span></li>
+                </ul>
+            </div>
+             <div class="info-group">
+                <h3><i class="icon fa-solid fa-flask"></i><span>Usos y Aplicaciones</span></h3>
+                <p>El etanol es una sustancia química versátil con una amplia gama de aplicaciones en diversas industrias:</p>
+                <ul>
+                    <li><span>Bebidas Alcohólicas</span><span>Componente psicoactivo principal.</span></li>
+                    <li><span>Combustible</span><span>Como biocombustible (bioetanol).</span></li>
+                    <li><span>Uso Médico</span><span>Antiséptico y desinfectante.</span></li>
+                    <li><span>Disolvente Industrial</span><span>Para perfumes, pinturas y barnices.</span></li>
+                    <li><span>Síntesis Química</span><span>Materia prima para otros compuestos.</span></li>
+                </ul>
+            </div>
+             <div class="info-group">
+                <h3><i class="icon fa-solid fa-shield-halved"></i><span>Seguridad y Riesgos</span></h3>
+                 <p>Líquido y vapores muy inflamables. Provoca irritación ocular grave. Mantener alejado de fuentes de calor y llamas.</p>
+                 <div class="safety-pictograms">
+                    <figure class="pictogram">
+                        <i class="fa-solid fa-fire" style="font-size: 50px; color: #D6001C;"></i>
+                        <figcaption>Inflamable</figcaption>
+                    </figure>
+                     <figure class="pictogram">
+                        <i class="fa-solid fa-triangle-exclamation" style="font-size: 50px; color: #D6001C;"></i>
+                        <figcaption>Riesgo a la salud</figcaption>
+                    </figure>
+                </div>
+            </div>
+        </div>
+        <div id="controls-tab" class="tab-content">
+            <div class="control-group">
+                <h3><i class="icon fa-solid fa-eye"></i><span>Visualización</span></h3>
+                <div class="control-item"><span>Etiquetas</span><label class="toggle-switch"><input id="labelsToggle" type="checkbox" checked /><span class="slider"></span></label></div>
+                <div class="control-item"><span>Space-filling</span><label class="toggle-switch"><input id="spaceFilling" type="checkbox" /><span class="slider"></span></label></div>
+                <div class="control-item"><span>Auto-rotación</span><label class="toggle-switch"><input id="autoRotate" type="checkbox" checked /><span class="slider"></span></label></div>
+                <div class="control-item"><span>Escala Modelo</span><input id="scaleRange" type="range" min="0.5" max="1.5" step="0.01" value="1"></div>
+            </div>
+            <div class="control-group">
+                <h3><i class="icon fa-solid fa-camera"></i><span>Cámara</span></h3>
+                <button class="reset-btn" id="resetBtn"><i class="fa-solid fa-arrows-rotate"></i><span>Resetear</span></button>
+            </div>
+        </div>
+    </aside>
+    <button id="sidebar-toggle" title="Toggle Sidebar">
+        <i class="fa-solid fa-chevron-left"></i>
+    </button>
+    <div id="infoBox"></div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+        const isMobile = window.innerWidth <= 768;
+
+        const container = document.getElementById('viewer');
+        const scene = new THREE.Scene();
+        const renderer = new THREE.WebGLRenderer({ 
+            antialias: !isMobile,
+            alpha: true 
+        });
+        
+        renderer.setPixelRatio(isMobile ? 1 : Math.min(window.devicePixelRatio, 2));
+        container.appendChild(renderer.domElement);
+
+        const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 1000);
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.autoRotate = true;
+        controls.autoRotateSpeed = 0.4;
+        controls.dampingFactor = 0.1;
+        controls.enablePan = false;
+
+        let composer;
+        if (!isMobile) {
+            const renderScene = new RenderPass(scene, camera);
+            const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.35, 0.5, 0);
+            composer = new EffectComposer(renderer);
+            composer.addPass(renderScene);
+            composer.addPass(bloomPass);
+        }
+
+        function resizeRenderer() {
+            const rect = container.getBoundingClientRect();
+            const width = rect.width;
+            const height = rect.height;
+            renderer.setSize(width, height, false);
+            if (composer) {
+                composer.setSize(width, height);
+            }
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+        }
+        window.addEventListener('resize', resizeRenderer);
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.2));
+        const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight1.position.set(5, 10, 7.5);
+        scene.add(dirLight1);
+        const dirLight2 = new THREE.DirectionalLight(0x818cf8, 0.3);
+        dirLight2.position.set(-5, -10, -7.5);
+        scene.add(dirLight2);
+        
+        const starCount = isMobile ? 2000 : 8000;
+        const starVertices = [];
+        for (let i = 0; i < starCount; i++) {
+            const x = THREE.MathUtils.randFloatSpread(200);
+            const y = THREE.MathUtils.randFloatSpread(200);
+            const z = THREE.MathUtils.randFloatSpread(200);
+            starVertices.push(x, y, z);
+        }
+        const starGeometry = new THREE.BufferGeometry();
+        starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starVertices, 3));
+        const starMaterial = new THREE.PointsMaterial({ color: 0x475569, size: 0.1, transparent: true, opacity: 0.8 });
+        const stars = new THREE.Points(starGeometry, starMaterial);
+        scene.add(stars);
+
+        const ATOM = {
+            C: { radius: 0.40, color: 0x475569, name: 'Carbono', mass: 12.01 },
+            H: { radius: 0.25, color: 0xE2E8F0, name: 'Hidrógeno', mass: 1.008 },
+            O: { radius: 0.42, color: 0xEF4444, name: 'Oxígeno', mass: 16.00 }
+        };
+
+        const atomsData = [
+            { element: 'C', pos: [-0.7, 0.3, 0] }, { element: 'C', pos: [0.7, -0.3, 0] }, { element: 'O', pos: [1.6, 0.6, 0] },
+            { element: 'H', pos: [-1.2, -0.6, 0] }, { element: 'H', pos: [-0.6, 0.9, 0.8] }, { element: 'H', pos: [-0.8, 0.8, -0.8] },
+            { element: 'H', pos: [0.7, -0.9, -0.8] }, { element: 'H', pos: [0.8, -0.8, 0.8] }, { element: 'H', pos: [2.3, 0.1, 0] }
+        ];
+
+        const moleculeGroup = new THREE.Group();
+        scene.add(moleculeGroup);
+        const labels = [];
+        const atomMeshes = [];
+
+        const sphereSegments = isMobile ? 16 : 32;
+        const cylinderSegments = isMobile ? 12 : 24;
+
+        function createSphere(radius, color) {
+            const geo = new THREE.SphereGeometry(radius, sphereSegments, sphereSegments / 2);
+            const mat = new THREE.MeshPhysicalMaterial({ color, metalness: 0.2, roughness: 0.3, clearcoat: 0.5, clearcoatRoughness: 0.2 });
+            return new THREE.Mesh(geo, mat);
+        }
+
+        function createCylinder(radius, height) {
+            const geo = new THREE.CylinderGeometry(radius, radius, height, cylinderSegments);
+            const mat = new THREE.MeshPhysicalMaterial({ color: 0x64748B, metalness: 0.2, roughness: 0.5 });
+            return new THREE.Mesh(geo, mat);
+        }
+
+        atomsData.forEach((a) => {
+            const def = ATOM[a.element];
+            const sphere = createSphere(def.radius, def.color);
+            sphere.position.set(...a.pos);
+            sphere.userData = { element: a.element, info: def };
+            moleculeGroup.add(sphere);
+            atomMeshes.push(sphere);
+            const div = document.createElement('div');
+            div.className = 'atom-label';
+            div.textContent = a.element;
+            document.body.appendChild(div);
+            labels.push({ el: div, mesh: sphere });
+        });
+
+        function addBond(p1, p2) {
+            const v1 = new THREE.Vector3(...p1); const v2 = new THREE.Vector3(...p2);
+            const dist = v1.distanceTo(v2);
+            const cyl = createCylinder(0.08, dist);
+            cyl.position.lerpVectors(v1, v2, 0.5);
+            cyl.lookAt(v2);
+            cyl.rotateX(Math.PI / 2);
+            moleculeGroup.add(cyl);
+        }
+
+        addBond(atomsData[0].pos, atomsData[1].pos);
+        addBond(atomsData[1].pos, atomsData[2].pos);
+        addBond(atomsData[0].pos, atomsData[3].pos); addBond(atomsData[0].pos, atomsData[4].pos); addBond(atomsData[0].pos, atomsData[5].pos);
+        addBond(atomsData[1].pos, atomsData[6].pos); addBond(atomsData[1].pos, atomsData[7].pos);
+        addBond(atomsData[2].pos, atomsData[8].pos);
+
+        function frameMolecule() {
+            const boundingBox = new THREE.Box3().setFromObject(moleculeGroup);
+            const center = boundingBox.getCenter(new THREE.Vector3());
+            const size = boundingBox.getSize(new THREE.Vector3());
+            moleculeGroup.position.sub(center);
+            const maxDim = Math.max(size.x, size.y, size.z);
+            const fov = camera.fov * (Math.PI / 180);
+            const cameraZ = Math.abs(maxDim / (2 * Math.tan(fov / 2)));
+            const padding = 1.8;
+            camera.position.set(0, 0, cameraZ * padding);
+            controls.target.set(0, 0, 0);
+            controls.update();
+        }
+
+        const raycaster = new THREE.Raycaster();
+        const pointerDownPos = new THREE.Vector2();
+        const infoBox = document.getElementById('infoBox');
+        let infoTimeout = null;
+
+        function handleAtomClick(event) {
+             const pointer = new THREE.Vector2(
+                (event.clientX / window.innerWidth) * 2 - 1,
+                -(event.clientY / window.innerHeight) * 2 + 1
+             );
+            raycaster.setFromCamera(pointer, camera);
+            const hits = raycaster.intersectObjects(atomMeshes);
+            if (hits.length) {
+                const { info, element } = hits[0].object.userData;
+                infoBox.textContent = `${info.name} (${element}) — Masa atómica: ${info.mass} u`;
+                
+                infoBox.classList.add('visible');
+
+                const boxRect = {width: infoBox.offsetWidth, height: infoBox.offsetHeight};
+                let x = event.clientX + 15;
+                let y = event.clientY + 15;
+                
+                if (x + boxRect.width > window.innerWidth - 10) {
+                    x = event.clientX - boxRect.width - 15;
+                }
+                if (y + boxRect.height > window.innerHeight - 10) {
+                    y = event.clientY - boxRect.height - 15;
+                }
+                
+                infoBox.style.left = `${x}px`;
+                infoBox.style.top = `${y}px`;
+
+                if (infoTimeout) clearTimeout(infoTimeout);
+                infoTimeout = setTimeout(() => infoBox.classList.remove('visible'), 3000);
+            }
+        }
+
+        renderer.domElement.addEventListener('pointerdown', (ev) => {
+            pointerDownPos.set(ev.clientX, ev.clientY);
+        });
+
+        renderer.domElement.addEventListener('pointerup', (ev) => {
+            const dist = pointerDownPos.distanceTo(new THREE.Vector2(ev.clientX, ev.clientY));
+            if (dist < 5) {
+                handleAtomClick(ev);
+            }
+        });
+
+        const autoRotateCheck = document.getElementById('autoRotate');
+        renderer.domElement.addEventListener('pointermove', () => {
+             if (controls.autoRotate) {
+                controls.autoRotate = false;
+                autoRotateCheck.checked = false;
+             }
+        });
+
+        document.getElementById('resetBtn').addEventListener('click', () => { 
+            controls.reset();
+            document.getElementById('scaleRange').value = 1;
+            moleculeGroup.scale.setScalar(1);
+            frameMolecule();
+            if (!controls.autoRotate) {
+                controls.autoRotate = true;
+                autoRotateCheck.checked = true;
+            }
+        });
+        const labelsToggle = document.getElementById('labelsToggle');
+        const scaleRange = document.getElementById('scaleRange');
+        const spaceFilling = document.getElementById('spaceFilling');
+        labelsToggle.addEventListener('change', () => labels.forEach(l => l.el.style.display = labelsToggle.checked ? 'block' : 'none'));
+        scaleRange.addEventListener('input', () => moleculeGroup.scale.setScalar(parseFloat(scaleRange.value)));
+        autoRotateCheck.addEventListener('change', () => controls.autoRotate = autoRotateCheck.checked);
+        spaceFilling.addEventListener('change', () => {
+            const isSF = spaceFilling.checked;
+            atomMeshes.forEach(m => m.scale.setScalar(isSF ? ATOM[m.userData.element].radius * 2.5 : 1.0));
+        });
+        
+        const sidebar = document.getElementById('sidebar');
+        document.getElementById('sidebar-toggle').addEventListener('click', () => {
+            sidebar.classList.toggle('closed');
+        });
+
+        const tabs = document.querySelectorAll('.tab-button');
+        const tabContents = document.querySelectorAll('.tab-content');
+        tabs.forEach(tab => tab.addEventListener('click', () => {
+            tabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            tabContents.forEach(c => c.classList.remove('active'));
+            document.getElementById(tab.dataset.tab).classList.add('active');
+        }));
+
+        // Botón de navegación al inicio
+        document.getElementById('home-button').addEventListener('click', () => {
+            window.location.href = '../index.html';
+        });
+
+        // Funcionalidad del chat con Gemini AI
+        const chatToggle = document.getElementById('chat-toggle');
+        const chatContainer = document.getElementById('chat-container');
+        const chatClose = document.getElementById('chat-close');
+        const chatInput = document.getElementById('chat-input');
+        const chatSend = document.getElementById('chat-send');
+        const chatMessages = document.getElementById('chat-messages');
+
+        // Configuración de Gemini AI - Usa el endpoint local
+        const GEMINI_API_KEY = 'AIzaSyAsOrx9g1AqYpdzgmkhhxUp5njo7EuWC-Q'; // API key de prueba
+        const GEMINI_MODEL = 'gemini-2.5-flash-lite';
+
+        // Mostrar/ocultar chat
+        chatToggle.addEventListener('click', () => {
+            chatContainer.classList.add('show');
+            chatInput.focus();
+        });
+
+        chatClose.addEventListener('click', () => {
+            chatContainer.classList.remove('show');
+        });
+
+        // Enviar mensaje
+        async function sendMessage() {
+            const message = chatInput.value.trim();
+            if (!message || chatSend.disabled) return;
+
+            // Agregar mensaje del usuario
+            addMessage(message, 'user');
+            chatInput.value = '';
+            chatSend.disabled = true;
+
+            try {
+                // Llamar a Gemini AI
+                const response = await callGeminiAI(message);
+                addMessage(response, 'ai');
+            } catch (error) {
+                addMessage('Lo siento, hubo un error al procesar tu pregunta. Verifica tu API key.', 'ai');
+                console.error('Error con Gemini AI:', error);
+            }
+
+            chatSend.disabled = false;
+        }
+
+        // Agregar mensaje al chat
+        function addMessage(text, sender) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender}`;
+
+            if (sender === 'ai' && chatMessages.children.length === 0) {
+                const headerDiv = document.createElement('div');
+                headerDiv.className = 'message ai-header';
+                headerDiv.textContent = '🤖 Asistente IA de Química';
+                chatMessages.appendChild(headerDiv);
+            }
+
+            messageDiv.textContent = text;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Llamar a Gemini AI usando el endpoint local
+        async function callGeminiAI(message) {
+            const context = `Eres un experto en química explicando sobre el etanol (C₂H₆O). Responde de manera clara, educativa y precisa sobre esta molécula. El usuario pregunta: ${message}`;
+
+            try {
+                const response = await fetch('/api/question', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        prompt: context
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(`Error HTTP: ${response.status} - ${errorData.error || 'Error desconocido'}`);
+                }
+
+                const data = await response.json();
+
+                if (data.response) {
+                    return data.response;
+                } else {
+                    throw new Error('Respuesta inesperada de la API');
+                }
+            } catch (error) {
+                throw new Error(`Error al llamar Gemini AI: ${error.message}`);
+            }
+        }
+
+        // Event listeners para el chat
+        chatSend.addEventListener('click', sendMessage);
+
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        // Mensaje de bienvenida
+        setTimeout(() => {
+            addMessage('¡Hola! Soy tu asistente de química especializado en el etanol. ¿Qué te gustaría saber sobre esta molécula?', 'ai');
+        }, 1000);
+
+        function projectLabel(label) {
+            const pos = new THREE.Vector3().setFromMatrixPosition(label.mesh.matrixWorld);
+            pos.project(camera);
+            const x = (pos.x * .5 + .5) * renderer.domElement.clientWidth;
+            const y = (pos.y * -.5 + .5) * renderer.domElement.clientHeight;
+            label.el.style.transform = `translate(-50%, -50%) translate(${x}px, ${y}px)`;
+            label.el.style.opacity = (pos.z > 1) ? '0' : '1';
+        }
+        
+        resizeRenderer();
+        frameMolecule();
+
+        moleculeGroup.scale.set(0.01, 0.01, 0.01);
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const elapsedTime = clock.getElapsedTime();
+
+            if (elapsedTime < 1.5 && elapsedTime > 0.5) {
+                const scale = THREE.MathUtils.lerp(0.01, 1, (elapsedTime - 0.5) / 1.0);
+                moleculeGroup.scale.setScalar(Math.max(0.01, scale));
+            }
+
+            controls.update();
+            if (labelsToggle.checked) labels.forEach(projectLabel);
+            stars.rotation.y += 0.0001;
+            
+            if (composer) {
+                composer.render();
+            } else {
+                renderer.render(scene, camera);
+            }
+        }
+        
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                document.getElementById('loader').style.opacity = '0';
+                setTimeout(() => document.getElementById('loader').style.display = 'none', 500);
+                animate();
+            }, 500);
+        });
+    </script>
+</body>
+</html>
