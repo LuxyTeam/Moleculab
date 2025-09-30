@@ -8,7 +8,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 3004;
+const PORT = process.env.PORT || 3005;
 
 // Middleware
 app.use(cors());
@@ -61,34 +61,21 @@ app.post('/api/question', async (req, res) => {
 
         console.log('📝 Prompt recibido:', prompt.substring(0, 100) + '...');
 
-        // Detección SIMPLE de saludos
-        const userMessageMatch = prompt.match(/El usuario pregunta:\s*(.+)$/i);
-        const userMessage = userMessageMatch ? userMessageMatch[1].trim().toLowerCase() : prompt.toLowerCase();
-
-        const greetings = ['hola', 'buenos días', 'buenas tardes', 'buenas noches', 'hello', 'hi', 'hey'];
-        const isGreeting = greetings.some(greeting => userMessage.includes(greeting));
-
-        let enhancedPrompt;
-        if (isGreeting) {
-            // Para saludos, ser ABSOLUTAMENTE MÍNIMO
-            enhancedPrompt = `El usuario dice: "${userMessage}". INSTRUCCIÓN: Responde SOLO con "¡Hola!" o "¡Hola! ¿En qué puedo ayudarte?". NADA MÁS. SIN información química.`;
-        } else {
-            enhancedPrompt = prompt + '\n\nINSTRUCCIÓN CRÍTICA: Responde ULTRA BREVE. Máximo 2 oraciones. Máximo 80 palabras. CORTA toda información innecesaria.';
-        }
+        // Crear prompt mejorado para respuestas expertas y educativas
+        const enhancedPrompt = prompt + '\n\nINSTRUCCIÓN ESPECIALIZADA:\n' +
+            '- Eres un experto químico especializado en educación científica\n' +
+            '- Proporciona información precisa, actualizada y bien fundamentada\n' +
+            '- Explica conceptos complejos de manera clara y accesible\n' +
+            '- Incluye ejemplos prácticos cuando sea relevante\n' +
+            '- Menciona aplicaciones industriales o importancia biológica cuando corresponda\n' +
+            '- Sé breve pero completo: máximo 4-5 oraciones útiles\n' +
+            '- Usa lenguaje técnico apropiado pero evita jerga innecesaria\n' +
+            '- Si no sabes algo con certeza, dilo honestamente';
 
         const response = await question(enhancedPrompt);
 
-        // Asegurar que la respuesta no sea demasiado larga
+        // No limitar la respuesta, dejar que la IA controle la longitud
         let formattedResponse = response;
-        if (isGreeting && response.length > 20) {
-            // Para saludos, ser ABSOLUTAMENTE ESTRICTO
-            formattedResponse = response.split('.')[0].split('!')[0].split('?')[0].trim();
-            if (formattedResponse.length > 20) {
-                formattedResponse = '¡Hola!';
-            }
-        } else if (!isGreeting && response.length > 200) {
-            formattedResponse = response.substring(0, 200) + '...';
-        }
 
         console.log('✅ Respuesta generada:', formattedResponse.substring(0, 100) + '...');
 
@@ -96,8 +83,28 @@ app.post('/api/question', async (req, res) => {
 
     } catch (error) {
         console.error('Error en /api/question:', error);
-        res.status(500).json({
-            error: 'Error interno del servidor',
+
+        // Respuestas de fallback según el tipo de error
+        let fallbackResponse = '';
+        let statusCode = 500;
+
+        if (error.message.includes('API_KEY') || error.message.includes('403')) {
+            fallbackResponse = 'Lo siento, tengo problemas de conexión con el servicio de IA. Por favor, verifica que mi API key esté configurada correctamente o intenta de nuevo en unos momentos.';
+            statusCode = 503;
+        } else if (error.message.includes('429')) {
+            fallbackResponse = 'He excedido mi límite de consultas por el momento. Por favor, espera unos minutos antes de hacer otra pregunta.';
+            statusCode = 429;
+        } else if (error.message.includes('network') || error.message.includes('ECONNREFUSED')) {
+            fallbackResponse = 'Tengo problemas de conexión. Por favor, verifica tu conexión a internet e intenta de nuevo.';
+            statusCode = 502;
+        } else {
+            fallbackResponse = 'Disculpa, ocurrió un error inesperado. Como experto químico, puedo ayudarte con información general sobre química mientras se resuelve el problema técnico.';
+            statusCode = 500;
+        }
+
+        res.status(statusCode).json({
+            error: 'Error en el servicio',
+            fallback: fallbackResponse,
             details: error.message
         });
     }
@@ -163,6 +170,88 @@ app.post('/api/analyze-image', async (req, res) => {
     }
 });
 
+// Base de datos de referencias químicas confiables
+const chemicalReferences = {
+    etanol: [
+        "PubChem CID: 702",
+        "IUPAC: Etanol",
+        "Fuente: NIST Chemistry WebBook",
+        "Referencia: CRC Handbook of Chemistry and Physics"
+    ],
+    amoniaco: [
+        "PubChem CID: 222",
+        "IUPAC: Azano",
+        "Fuente: NIST Chemistry WebBook",
+        "Referencia: Merck Index"
+    ],
+    etileno: [
+        "PubChem CID: 6325",
+        "IUPAC: Eteno",
+        "Fuente: NIST Chemistry WebBook",
+        "Referencia: CRC Handbook of Chemistry and Physics"
+    ],
+    'acido_sulfurico': [
+        "PubChem CID: 1118",
+        "IUPAC: Ácido sulfúrico",
+        "Fuente: NIST Chemistry WebBook",
+        "Referencia: Merck Index, CRC Handbook"
+    ],
+    acetona: [
+        "PubChem CID: 180",
+        "IUPAC: Propanona",
+        "Fuente: NIST Chemistry WebBook",
+        "Referencia: CRC Handbook of Chemistry and Physics"
+    ],
+    glucosa: [
+        "PubChem CID: 5793",
+        "IUPAC: (2R,3S,4R,5R)-2,3,4,5,6-Pentahidroxiexanal",
+        "Fuente: PubChem, KEGG",
+        "Referencia: Merck Index, Biochemical Pathways"
+    ],
+    agua: [
+        "PubChem CID: 962",
+        "IUPAC: Óxido de hidrógeno",
+        "Fuente: NIST Chemistry WebBook",
+        "Referencia: CRC Handbook, Lange's Handbook"
+    ],
+    metano: [
+        "PubChem CID: 297",
+        "IUPAC: Metano",
+        "Fuente: NIST Chemistry WebBook",
+        "Referencia: CRC Handbook of Chemistry and Physics"
+    ],
+    'hidroxido_sodio': [
+        "PubChem CID: 14798",
+        "IUPAC: Hidróxido de sodio",
+        "Fuente: PubChem, NIST",
+        "Referencia: Merck Index, CRC Handbook"
+    ]
+};
+
+// API endpoint para referencias químicas
+app.get('/api/chemistry/references/:molecule', (req, res) => {
+    try {
+        const molecule = req.params.molecule.toLowerCase();
+        const references = chemicalReferences[molecule];
+
+        if (references) {
+            res.json({
+                molecule,
+                references,
+                disclaimer: "Estas referencias provienen de fuentes científicas confiables como PubChem, NIST y manuales químicos estándar."
+            });
+        } else {
+            res.status(404).json({
+                error: 'Molécula no encontrada',
+                available: Object.keys(chemicalReferences)
+            });
+        }
+    } catch (error) {
+        console.error('Error en referencias:', error);
+        res.status(500).json({ error: 'Error interno del servidor' });
+    }
+});
+
 // Función auxiliar para analyzeImage que retorna el resultado
 async function analyzeImageWithReturn(fileBuffer, prompt) {
     try {
@@ -201,6 +290,201 @@ async function analyzeImageWithReturn(fileBuffer, prompt) {
     } catch (error) {
         throw error;
     }
+}
+
+// API endpoint para búsqueda de moléculas
+app.get('/api/molecules/search', (req, res) => {
+    try {
+        const query = req.query.q?.toLowerCase() || '';
+
+        // Base de datos simple de moléculas disponibles
+        const molecules = [
+            {
+                name: 'Etanol',
+                formula: 'C₂H₆O',
+                category: 'Alcohol',
+                description: 'Alcohol etílico usado en bebidas y como solvente',
+                url: 'molecules/ethanol.html'
+            },
+            {
+                name: 'Amoníaco',
+                formula: 'NH₃',
+                category: 'Gas Industrial',
+                description: 'Gas incoloro con olor penetrante, usado en fertilizantes',
+                url: 'molecules/ammonia.html'
+            },
+            {
+                name: 'Etileno',
+                formula: 'C₂H₄',
+                category: 'Alqueno',
+                description: 'Hidrocarburo insaturado, materia prima para plásticos',
+                url: 'molecules/ethylene.html'
+            },
+            {
+                name: 'Ácido Sulfúrico',
+                formula: 'H₂SO₄',
+                category: 'Ácido Fuerte',
+                description: 'Ácido corrosivo usado en múltiples industrias',
+                url: 'molecules/sulfuric-acid.html'
+            },
+            {
+                name: 'Acetona',
+                formula: 'C₃H₆O',
+                category: 'Cetona',
+                description: 'Importante solvente industrial y removedor de esmalte',
+                url: 'molecules/acetone.html'
+            },
+            {
+                name: 'Glucosa',
+                formula: 'C₆H₁₂O₆',
+                category: 'Azúcar',
+                description: 'Azúcar más importante biológicamente, fuente principal de energía',
+                url: 'molecules/glucose.html'
+            },
+            {
+                name: 'Agua',
+                formula: 'H₂O',
+                category: 'Óxido',
+                description: 'Solvente universal y molécula esencial para la vida',
+                url: 'molecules/water.html'
+            },
+            {
+                name: 'Metano',
+                formula: 'CH₄',
+                category: 'Alcano',
+                description: 'Gas natural, hidrocarburo más simple y potente gas de efecto invernadero',
+                url: 'molecules/methane.html'
+            },
+            {
+                name: 'Hidróxido de Sodio',
+                formula: 'NaOH',
+                category: 'Base Fuerte',
+                description: 'Base muy utilizada en industria química y sosa cáustica',
+                url: 'molecules/sodium-hydroxide.html'
+            }
+        ];
+
+        // Filtrar moléculas según la búsqueda
+        const results = molecules.filter(mol =>
+            mol.name.toLowerCase().includes(query) ||
+            mol.formula.toLowerCase().includes(query) ||
+            mol.category.toLowerCase().includes(query)
+        );
+
+        res.json({ results });
+    } catch (error) {
+        console.error('Error en búsqueda:', error);
+        res.status(500).json({ error: 'Error interno del servidor' });
+    }
+});
+
+// API endpoint para cálculos químicos básicos
+app.post('/api/chemistry/calculate', async (req, res) => {
+    try {
+        const { type, data } = req.body;
+
+        if (!type || !data) {
+            return res.status(400).json({
+                error: 'Tipo de cálculo y datos son requeridos'
+            });
+        }
+
+        let result;
+        switch (type) {
+            case 'molar_mass':
+                result = await calculateMolarMass(data.formula);
+                break;
+            case 'concentration':
+                result = calculateConcentration(data);
+                break;
+            case 'dilution':
+                result = calculateDilution(data);
+                break;
+            default:
+                return res.status(400).json({ error: 'Tipo de cálculo no reconocido' });
+        }
+
+        res.json({ result });
+    } catch (error) {
+        console.error('Error en cálculo químico:', error);
+        res.status(500).json({ error: 'Error en el cálculo' });
+    }
+});
+
+// Función auxiliar para calcular masa molar (simplificada)
+async function calculateMolarMass(formula) {
+    // Esta es una implementación muy básica - en producción usarías una librería química
+    const atomicMasses = {
+        'H': 1.008, 'C': 12.011, 'N': 14.007, 'O': 15.999,
+        'S': 32.06, 'P': 30.974, 'Cl': 35.45, 'Na': 22.99
+    };
+
+    let mass = 0;
+    let currentElement = '';
+    let currentNumber = '';
+
+    for (let i = 0; i < formula.length; i++) {
+        const char = formula[i];
+
+        if (char >= 'A' && char <= 'Z') {
+            if (currentElement) {
+                const num = currentNumber ? parseInt(currentNumber) : 1;
+                mass += atomicMasses[currentElement] * num;
+            }
+            currentElement = char;
+            currentNumber = '';
+        } else if (char >= 'a' && char <= 'z') {
+            currentElement += char;
+        } else if (char >= '0' && char <= '9') {
+            currentNumber += char;
+        }
+    }
+
+    if (currentElement) {
+        const num = currentNumber ? parseInt(currentNumber) : 1;
+        mass += atomicMasses[currentElement] * num;
+    }
+
+    return {
+        formula,
+        molar_mass: mass.toFixed(2),
+        units: 'g/mol'
+    };
+}
+
+// Función para calcular concentración
+function calculateConcentration(data) {
+    const { solute_mass, solution_volume, solute_molar_mass } = data;
+
+    if (!solute_mass || !solution_volume || !solute_molar_mass) {
+        throw new Error('Datos incompletos para calcular concentración');
+    }
+
+    const moles = solute_mass / solute_molar_mass;
+    const concentration = moles / (solution_volume / 1000); // Convertir mL a L
+
+    return {
+        concentration: concentration.toFixed(3),
+        units: 'mol/L',
+        calculation: `${solute_mass}g / ${solute_molar_mass} g/mol / ${solution_volume/1000}L = ${concentration.toFixed(3)} mol/L`
+    };
+}
+
+// Función para calcular dilución
+function calculateDilution(data) {
+    const { initial_concentration, initial_volume, final_concentration } = data;
+
+    if (!initial_concentration || !initial_volume || !final_concentration) {
+        throw new Error('Datos incompletos para calcular dilución');
+    }
+
+    const final_volume = (initial_concentration * initial_volume) / final_concentration;
+
+    return {
+        final_volume: final_volume.toFixed(1),
+        units: 'mL',
+        calculation: `V₂ = (${initial_concentration} × ${initial_volume}) / ${final_concentration} = ${final_volume.toFixed(1)} mL`
+    };
 }
 
 // Ruta catch-all - servir index.html para SPA

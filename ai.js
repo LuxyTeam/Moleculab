@@ -9,26 +9,13 @@ const GEMINI_MODEL = "gemini-2.5-flash-lite";
 
 export async function question(prompt) {
   try {
-    const model = ai.getGenerativeModel({
-      model: GEMINI_MODEL,
-      generationConfig: {
-        temperature: 0.7,
-        topK: 40,
-        topP: 0.8,
-        maxOutputTokens: 100, // Ultra-reducido para respuestas muy cortas
-      }
-    });
+    const model = ai.getGenerativeModel({ model: GEMINI_MODEL });
 
-    // Modificar el prompt para solicitar respuestas ULTRA concisas
-    const concisePrompt = prompt + '\n\nINSTRUCCIÓN CRÍTICA: Responde de manera ULTRA BREVE. Máximo 3 oraciones cortas. Sé directo y conciso. NO agregues información innecesaria.';
+    // Modificar el prompt para respuestas concisas pero completas
+    const concisePrompt = prompt + '\n\nINSTRUCCIÓN: Asegúrate que tu respuesta sea breve y concisa. Sé claro y educativo, pero no agregues información innecesaria.';
 
     const result = await model.generateContent([concisePrompt]);
     let response = result.response.text();
-
-    // Limitar ULTRA estrictamente la longitud
-    if (response.length > 250) {
-      response = response.substring(0, 250) + '...';
-    }
 
     return response;
   } catch (error) {
