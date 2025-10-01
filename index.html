@@ -326,6 +326,124 @@
            font-size: 1.2rem;
            margin-right: 5px;
        }
+
+       .team-section {
+           margin-bottom: 80px;
+           text-align: center;
+       }
+
+       .team-section h2 {
+           text-align: center;
+           font-size: 2.5rem;
+           font-weight: 700;
+           margin-bottom: 50px;
+           background: linear-gradient(135deg, #818cf8, #34d399, #f59e0b);
+           -webkit-background-clip: text;
+           -webkit-text-fill-color: transparent;
+           background-clip: text;
+           margin-left: auto;
+           margin-right: auto;
+       }
+
+       .team-grid {
+           display: grid;
+           grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+           gap: 30px;
+           margin-bottom: 40px;
+           max-width: 1200px;
+           margin-left: auto;
+           margin-right: auto;
+       }
+
+       .team-card {
+           background: var(--panel-bg);
+           border: 1px solid var(--border-color);
+           border-radius: 15px;
+           padding: 25px 20px;
+           text-align: center;
+           backdrop-filter: blur(12px);
+           -webkit-backdrop-filter: blur(12px);
+           transition: all 0.3s ease;
+           position: relative;
+           overflow: hidden;
+           display: flex;
+           align-items: center;
+           justify-content: center;
+       }
+
+       .team-card::before {
+           content: '';
+           position: absolute;
+           top: 0;
+           left: 0;
+           right: 0;
+           height: 3px;
+           background: linear-gradient(90deg, #818cf8, #34d399, #f59e0b, #ef4444, #ec4899);
+           background-size: 200% 100%;
+           animation: gradient-shift 3s linear infinite;
+       }
+
+       .team-card:hover {
+           transform: translateY(-5px);
+           box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+           border-color: var(--accent-color);
+       }
+
+       .team-name {
+           font-size: 1.3rem;
+           font-weight: 600;
+           color: var(--text-primary);
+           margin: 0;
+           line-height: 1.4;
+           text-align: center;
+       }
+
+       .team-role {
+           background: var(--accent-color);
+           color: white;
+           padding: 6px 14px;
+           border-radius: 15px;
+           font-size: 0.85rem;
+           font-weight: 600;
+           display: inline-block;
+           margin-bottom: 15px;
+       }
+
+       .team-description {
+           color: var(--text-secondary);
+           line-height: 1.6;
+           font-size: 0.95rem;
+           margin-bottom: 20px;
+       }
+
+
+       @media (max-width: 768px) {
+           .team-grid {
+               grid-template-columns: 1fr;
+               gap: 20px;
+               max-width: 100%;
+               padding: 0 10px;
+           }
+
+           .team-card {
+               padding: 20px 15px;
+               width: 100%;
+               margin: 0 auto;
+           }
+
+           .team-section h2 {
+               font-size: 2rem;
+               margin-bottom: 40px;
+               text-align: center;
+               width: 100%;
+           }
+
+           .team-name {
+               font-size: 1.2rem;
+               text-align: center;
+               width: 100%;
+           }
+       }
    </style>
 </head>
 <body>
@@ -534,6 +652,30 @@
            </div>
        </section>
 
+       <section class="team-section loading">
+           <h2><i class="fas fa-users"></i> Nuestro Equipo</h2>
+           <div class="team-grid">
+               <div class="team-card">
+                   <h3 class="team-name">Felix Aaron Gonzalez Juarez</h3>
+               </div>
+
+               <div class="team-card">
+                   <h3 class="team-name">Luz Esperanza Cruz Laguna</h3>
+               </div>
+
+               <div class="team-card">
+                   <h3 class="team-name">Héctor Ricardo Cuevas Gallardo</h3>
+               </div>
+
+               <div class="team-card">
+                   <h3 class="team-name">Yajhany Hernández Lázaro</h3>
+               </div>
+
+               <div class="team-card">
+                   <h3 class="team-name">Noah Gael Diaz Naranjo</h3>
+               </div>
+           </div>
+       </section>
 
        <footer class="footer loading">
            <p>&copy; 2025 Moleculab. Desarrollado con ❣️.</p>
